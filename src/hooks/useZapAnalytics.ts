@@ -21,7 +21,8 @@ import {
   groupZapsByHour,
   groupZapsByDayOfWeek,
   analyzeZapperLoyalty,
-  analyzeContentPerformance
+  analyzeContentPerformance,
+  analyzeHashtagPerformance
 } from '@/lib/zaplytics/utils';
 
 /**
@@ -62,6 +63,7 @@ interface ZapLoadingState {
   error: string | null;
   autoLoadEnabled: boolean; // Whether automatic loading is enabled
   consecutiveFailures: number; // Track failures to stop auto-loading
+  consecutiveZeroResults: number; // Track consecutive zero-result batches to stop infinite loops
   allReceiptsCache: ZapReceipt[]; // All receipts ever loaded for this user
 }
 
@@ -81,6 +83,7 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '30d', customRange?: C
     error: null,
     autoLoadEnabled: true,
     consecutiveFailures: 0,
+    consecutiveZeroResults: 0,
     allReceiptsCache: [],
   });
 
@@ -178,6 +181,7 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '30d', customRange?: C
       error: null,
       autoLoadEnabled: true,
       consecutiveFailures: 0,
+      consecutiveZeroResults: 0,
       allReceiptsCache: [],
     });
   }, [user?.pubkey]);
@@ -196,11 +200,18 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '30d', customRange?: C
       return;
     }
 
-    // Stop automatic loading if disabled or too many failures
-    if (isAutomatic && (!currentState.autoLoadEnabled || currentState.consecutiveFailures >= ZAP_FETCH_CONFIG.MAX_CONSECUTIVE_FAILURES)) {
+    // Stop automatic loading if disabled, too many failures, or too many consecutive zero results
+    const maxConsecutiveZeroResults = 3; // Stop after 3 consecutive zero-result batches
+    if (isAutomatic && (
+      !currentState.autoLoadEnabled || 
+      currentState.consecutiveFailures >= ZAP_FETCH_CONFIG.MAX_CONSECUTIVE_FAILURES ||
+      currentState.consecutiveZeroResults >= maxConsecutiveZeroResults
+    )) {
       console.log('Skipping automatic load:', { 
         autoLoadEnabled: currentState.autoLoadEnabled, 
-        consecutiveFailures: currentState.consecutiveFailures 
+        consecutiveFailures: currentState.consecutiveFailures,
+        consecutiveZeroResults: currentState.consecutiveZeroResults,
+        maxConsecutiveZeroResults
       });
       return;
     }
@@ -325,8 +336,8 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '30d', customRange?: C
             const oldestInCache = currentState.allReceiptsCache.length > 0 
               ? Math.min(...currentState.allReceiptsCache.map(r => r.created_at))
               : Date.now() / 1000;
-            // Add tolerance for time boundary check - within 1 hour is considered "reached"
-            const BOUNDARY_TOLERANCE_SECONDS = 3600; // 1 hour tolerance
+            // INCREASED boundary tolerance from 1 hour to 4 hours to handle larger gaps
+            const BOUNDARY_TOLERANCE_SECONDS = 14400; // 4 hours tolerance (was 3600)
             const reachedTimeBoundary = oldestInCache <= (since + BOUNDARY_TOLERANCE_SECONDS);
             isComplete = reachedTimeBoundary;
             
@@ -336,15 +347,15 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '30d', customRange?: C
               timeDifferenceMinutes: Math.round((oldestInCache - since) / 60),
               reachedTimeBoundary,
               finalIsComplete: isComplete,
-              toleranceUsed: !reachedTimeBoundary ? 'outside 1h tolerance' : 'within tolerance'
+              toleranceUsed: !reachedTimeBoundary ? 'outside 4h tolerance' : 'within tolerance'
             });
           } else {
             isComplete = true; // For custom ranges, 0 results = end
           }
         } else if (timeRange !== 'custom') {
-          // For preset ranges with results, check the time boundary with tolerance
+          // For preset ranges with results, check the time boundary with increased tolerance
           const oldestNewReceipt = Math.min(...validReceipts.map(r => r.created_at));
-          const BOUNDARY_TOLERANCE_SECONDS = 3600; // 1 hour tolerance
+          const BOUNDARY_TOLERANCE_SECONDS = 14400; // 4 hours tolerance (was 3600)
           const reachedTimeBoundary = oldestNewReceipt <= (since + BOUNDARY_TOLERANCE_SECONDS);
           isComplete = reachedTimeBoundary;
           
@@ -380,6 +391,7 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '30d', customRange?: C
           totalFetched: filteredReceipts.length,
           relayLimit: detectedLimit,
           consecutiveFailures: 0, // Reset failures on success
+          consecutiveZeroResults: validReceipts.length === 0 ? prev.consecutiveZeroResults + 1 : 0, // Track zero results
         };
       });
 
@@ -600,23 +612,27 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '30d', customRange?: C
       : 0;
     
     // CRITICAL FIX: Add tolerance check here too to prevent infinite loops
-    const BOUNDARY_TOLERANCE_SECONDS = 3600; // 1 hour tolerance
+    const BOUNDARY_TOLERANCE_SECONDS = 14400; // 4 hours tolerance (increased from 3600)
     const withinBoundaryTolerance = oldestCachedTimestamp <= (since + BOUNDARY_TOLERANCE_SECONDS);
     
     // Specifically handle extending time ranges (when we have data but need older data)
+    // ENHANCED: Also check consecutive zero results to prevent infinite loops
+    const maxConsecutiveZeroResults = 3; // Stop after 3 consecutive zero-result batches
     const needsExtendedData = currentState.receipts.length > 0 && 
                              oldestCachedTimestamp > since &&
                              !withinBoundaryTolerance && // NEW: Don't trigger if within tolerance
                              !currentState.isLoading && 
                              !currentState.isComplete &&
-                             currentState.autoLoadEnabled;
+                             currentState.autoLoadEnabled &&
+                             currentState.consecutiveZeroResults < maxConsecutiveZeroResults; // NEW: Stop if too many zero results
     
     if (needsExtendedData) {
       console.log('Time range extension detected - scheduling auto-load for:', timeRange, {
         oldestCached: new Date(oldestCachedTimestamp * 1000).toISOString(),
         timeRangeSince: new Date(since * 1000).toISOString(),
         gapMinutes: Math.round((oldestCachedTimestamp - since) / 60),
-        withinTolerance: withinBoundaryTolerance
+        withinTolerance: withinBoundaryTolerance,
+        consecutiveZeroResults: currentState.consecutiveZeroResults
       });
       autoLoadTimeoutRef.current = setTimeout(() => {
         console.log('Auto-loading triggered by time range extension:', timeRange);
@@ -628,6 +644,11 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '30d', customRange?: C
         timeRangeSince: new Date(since * 1000).toISOString(),
         gapMinutes: Math.round((oldestCachedTimestamp - since) / 60)
       });
+    } else if (currentState.consecutiveZeroResults >= maxConsecutiveZeroResults) {
+      console.log('Skipping extension auto-load - too many consecutive zero results:', {
+        consecutiveZeroResults: currentState.consecutiveZeroResults,
+        maxConsecutiveZeroResults
+      });
     }
     
     return () => {
@@ -635,7 +656,7 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '30d', customRange?: C
         clearTimeout(autoLoadTimeoutRef.current);
       }
     };
-  }, [user?.pubkey, timeRange, customRange, state.receipts.length, state.allReceiptsCache.length, state.isLoading, state.isComplete, state.autoLoadEnabled, loadMoreZaps]);
+  }, [user?.pubkey, timeRange, customRange, state.receipts.length, state.allReceiptsCache.length, state.isLoading, state.isComplete, state.autoLoadEnabled, state.consecutiveZeroResults, loadMoreZaps]);
 
   // Function to manually trigger loading (for load more button)
   const manualLoadMore = useCallback(() => {
@@ -652,7 +673,8 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '30d', customRange?: C
     setState(prev => ({ 
       ...prev, 
       autoLoadEnabled: true, 
-      consecutiveFailures: 0 
+      consecutiveFailures: 0,
+      consecutiveZeroResults: 0 // Reset zero results counter too
     }));
     
     // If we're not loading and not complete, start loading
@@ -965,6 +987,7 @@ export function useZapAnalytics(timeRange: TimeRange = '30d', customRange?: Cust
             topLoyalZappers: [],
           },
           contentPerformance: [],
+          hashtagPerformance: [],
           loadingState: {
             isLoading: false,
             isComplete: true,
@@ -1034,6 +1057,9 @@ export function useZapAnalytics(timeRange: TimeRange = '30d', customRange?: Cust
       
       const zapperLoyalty = analyzeZapperLoyalty(parsedZaps);
       const contentPerformance = analyzeContentPerformance(parsedZaps).slice(0, 20); // Top 20 performing content
+      
+      // Content creator analytics
+      const hashtagPerformance = analyzeHashtagPerformance(parsedZaps);
 
       return {
         totalEarnings,
@@ -1048,6 +1074,7 @@ export function useZapAnalytics(timeRange: TimeRange = '30d', customRange?: Cust
         temporalPatterns,
         zapperLoyalty,
         contentPerformance,
+        hashtagPerformance,
         loadingState: {
           isLoading: progressiveData.isLoading || _contentLoading || _profilesLoading,
           isComplete: progressiveData.isComplete && !_contentLoading && !_profilesLoading,

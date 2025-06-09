@@ -156,7 +156,7 @@ export function ZapperLeaderboard({ data, isLoading }: ZapperLeaderboardProps) {
                   href={createNjumpProfileLink(zapper.pubkey)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 mt-1 transition-opacity"
                 >
                   View Profile <ExternalLink className="h-3 w-3" />
                 </a>

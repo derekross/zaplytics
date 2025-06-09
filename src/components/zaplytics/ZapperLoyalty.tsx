@@ -3,7 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Users, Heart, TrendingUp, Clock } from 'lucide-react';
+import { Users, Heart, TrendingUp, Clock, ExternalLink } from 'lucide-react';
 import type { LoyaltyStats, ZapperLoyalty } from '@/types/zaplytics';
 import { formatSats, createNjumpProfileLink } from '@/lib/zaplytics/utils';
 
@@ -161,50 +161,59 @@ export function ZapperLoyalty({ data, isLoading }: ZapperLoyaltyProps) {
         {data.topLoyalZappers.length > 0 && (
           <div className="space-y-3">
             <h4 className="text-sm font-medium">Most Loyal Supporters</h4>
-            <div className="space-y-3 max-h-[300px] overflow-y-auto">
-              {data.topLoyalZappers.map((zapper) => {
+            <div className="space-y-3">
+              {data.topLoyalZappers.slice(0, 10).map((zapper) => {
                 const categoryInfo = getCategoryInfo(zapper.category);
                 
                 return (
-                  <div key={zapper.pubkey} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage 
-                          src={zapper.picture} 
-                          alt={zapper.name || zapper.pubkey.slice(0, 8)}
-                        />
-                        <AvatarFallback>
-                          {zapper.name ? zapper.name[0].toUpperCase() : zapper.pubkey[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <a
-                            href={createNjumpProfileLink(zapper.pubkey)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm font-medium hover:text-primary transition-colors truncate"
-                          >
-                            {zapper.name || `${zapper.pubkey.slice(0, 8)}...${zapper.pubkey.slice(-4)}`}
-                          </a>
-                          <Badge 
-                            variant="secondary" 
-                            className="text-xs px-2 py-0 h-5"
-                            style={{ backgroundColor: categoryInfo.color + '20', color: categoryInfo.color }}
-                          >
-                            {categoryInfo.icon} {categoryInfo.label}
-                          </Badge>
-                        </div>
-                        
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>{zapper.zapCount} zaps</span>
-                          <span>{formatSats(zapper.totalSats)} sats</span>
-                          {zapper.averageDaysBetweenZaps > 0 && (
-                            <span>~{formatDuration(zapper.averageDaysBetweenZaps)} between zaps</span>
-                          )}
-                        </div>
+                  <div key={zapper.pubkey} className="flex items-center gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage 
+                        src={zapper.picture} 
+                        alt={zapper.name || zapper.pubkey.slice(0, 8)}
+                      />
+                      <AvatarFallback>
+                        {zapper.name ? zapper.name[0].toUpperCase() : zapper.pubkey[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="text-sm font-medium truncate">
+                          {zapper.name || `${zapper.pubkey.slice(0, 8)}...${zapper.pubkey.slice(-4)}`}
+                        </h4>
+                        <Badge 
+                          variant="secondary" 
+                          className="text-xs px-2 py-0 h-5"
+                          style={{ backgroundColor: categoryInfo.color + '20', color: categoryInfo.color }}
+                        >
+                          {categoryInfo.icon} {categoryInfo.label}
+                        </Badge>
                       </div>
+                      
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <span>{zapper.zapCount} zaps</span>
+                        <span>{formatSats(zapper.totalSats)} sats</span>
+                        {zapper.averageDaysBetweenZaps > 0 && (
+                          <span>~{formatDuration(zapper.averageDaysBetweenZaps)} between zaps</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="flex-shrink-0 text-right">
+                      <div className="text-lg font-bold text-primary">
+                        {formatSats(zapper.totalSats)}
+                      </div>
+                      <div className="text-xs text-muted-foreground">sats</div>
+                      
+                      <a
+                        href={createNjumpProfileLink(zapper.pubkey)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 mt-1 transition-opacity"
+                      >
+                        View Profile <ExternalLink className="h-3 w-3" />
+                      </a>
                     </div>
                   </div>
                 );

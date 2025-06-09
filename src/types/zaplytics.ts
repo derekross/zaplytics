@@ -121,6 +121,17 @@ export interface ContentPerformance {
   avgZapAmount: number;
 }
 
+// New types for hashtag performance analytics
+export interface HashtagPerformance {
+  hashtag: string;
+  totalSats: number;
+  zapCount: number;
+  avgZapAmount: number;
+  postCount: number;
+  successRate: number; // % of posts with this hashtag that get zapped
+  avgTimeToFirstZap: number;
+}
+
 export interface AnalyticsData {
   totalEarnings: number;
   totalZaps: number;
@@ -139,6 +150,9 @@ export interface AnalyticsData {
   };
   zapperLoyalty: LoyaltyStats;
   contentPerformance: ContentPerformance[];
+  
+  // Content creator analytics
+  hashtagPerformance: HashtagPerformance[];
 }
 
 export type TimeRange = '24h' | '7d' | '30d' | '90d' | 'custom';

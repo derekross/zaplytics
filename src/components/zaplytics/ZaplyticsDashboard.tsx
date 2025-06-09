@@ -10,10 +10,11 @@ import { StatsCards } from '@/components/zaplytics/StatsCards';
 import { EarningsChart } from '@/components/zaplytics/EarningsChart';
 import { TopContentTable } from '@/components/zaplytics/TopContentTable';
 import { EarningsByKindChart } from '@/components/zaplytics/EarningsByKindChart';
-import { ZapperLeaderboard } from '@/components/zaplytics/ZapperLeaderboard';
 import { TemporalPatternsChart } from '@/components/zaplytics/TemporalPatternsChart';
 import { ZapperLoyalty } from '@/components/zaplytics/ZapperLoyalty';
 import { ContentPerformance } from '@/components/zaplytics/ContentPerformance';
+import { HashtagAnalytics } from '@/components/zaplytics/HashtagAnalytics';
+import { CsvExport } from '@/components/zaplytics/CsvExport';
 import { ZapLoadingProgress } from '@/components/zaplytics/ZapLoadingProgress';
 import type { TimeRange, CustomDateRange, AnalyticsData } from '@/types/zaplytics';
 
@@ -254,9 +255,19 @@ export function ZaplyticsDashboard() {
               />
             )}
 
-            {/* Zapper Leaderboard */}
-            <ZapperLeaderboard 
-              data={analytics?.topZappers || []}
+            {/* Hashtag Performance - Full Width */}
+            {analytics?.hashtagPerformance && (
+              <HashtagAnalytics 
+                data={analytics.hashtagPerformance}
+                isLoading={isLoading}
+              />
+            )}
+
+            {/* CSV Export */}
+            <CsvExport 
+              data={analytics}
+              timeRange={timeRange}
+              customRange={customRange}
               isLoading={isLoading}
             />
 

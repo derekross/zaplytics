@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
@@ -82,97 +81,93 @@ export function ContentPerformance({ data, isLoading }: ContentPerformanceProps)
   const sortedByLongevity = [...data].filter(item => item.longevityDays > 0).sort((a, b) => b.longevityDays - a.longevityDays);
 
   const ContentTable = ({ items, showMetric }: { items: ContentPerformance[], showMetric: 'earnings' | 'virality' | 'speed' | 'longevity' }) => (
-    <div className="space-y-3 max-h-[400px] overflow-y-auto">
-      {items.slice(0, 15).map((item) => {
+    <div className="space-y-3">
+      {items.slice(0, 10).map((item) => {
         const viralityBadge = getViralityBadge(item.viralityScore);
         const kindName = KIND_NAMES[item.eventKind] || `Kind ${item.eventKind}`;
         
         return (
-          <div key={item.eventId} className="p-4 bg-muted/30 rounded-lg space-y-3">
-            {/* Header */}
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="outline" className="text-xs">
-                    {kindName}
+          <div key={item.eventId} className="flex items-start gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+            {/* Content Info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <Badge variant="outline" className="text-xs">
+                  {kindName}
+                </Badge>
+                {showMetric === 'virality' && (
+                  <Badge 
+                    className="text-xs px-2 py-0 h-5"
+                    style={{ 
+                      backgroundColor: viralityBadge.color + '20', 
+                      color: viralityBadge.color 
+                    }}
+                  >
+                    {viralityBadge.icon} {viralityBadge.label}
                   </Badge>
-                  {showMetric === 'virality' && (
-                    <Badge 
-                      className="text-xs px-2 py-0 h-5"
-                      style={{ 
-                        backgroundColor: viralityBadge.color + '20', 
-                        color: viralityBadge.color 
-                      }}
-                    >
-                      {viralityBadge.icon} {viralityBadge.label}
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {truncateText(item.content, 120)}
-                </p>
+                )}
               </div>
               
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 flex-shrink-0"
-                asChild
+              <p className="text-sm text-muted-foreground leading-relaxed mb-3">
+                {truncateText(item.content, 120)}
+              </p>
+
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className={`flex items-center gap-2 ${showMetric === 'earnings' ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                  <Zap className="h-4 w-4" />
+                  <div>
+                    <div>{formatSats(item.totalSats)} sats</div>
+                    <div className="text-xs opacity-70">{item.zapCount} zaps</div>
+                  </div>
+                </div>
+
+                <div className={`flex items-center gap-2 ${showMetric === 'speed' ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                  <Timer className="h-4 w-4" />
+                  <div>
+                    <div>{formatTimeToFirstZap(item.timeToFirstZap)}</div>
+                    <div className="text-xs opacity-70">to first zap</div>
+                  </div>
+                </div>
+
+                <div className={`flex items-center gap-2 ${showMetric === 'virality' ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                  <TrendingUp className="h-4 w-4" />
+                  <div>
+                    <div>{item.viralityScore.toFixed(1)}%</div>
+                    <div className="text-xs opacity-70">in 1st hour</div>
+                  </div>
+                </div>
+
+                <div className={`flex items-center gap-2 ${showMetric === 'longevity' ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                  <Calendar className="h-4 w-4" />
+                  <div>
+                    <div>{formatLongevity(item.longevityDays)}</div>
+                    <div className="text-xs opacity-70">earning span</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Performance Info */}
+              <div className="flex items-center justify-between text-xs text-muted-foreground pt-3 mt-3 border-t border-muted">
+                <div className="flex items-center gap-4">
+                  <span>Avg: {formatSats(item.avgZapAmount)} sats/zap</span>
+                  <span>Peak: {getPeakWindowLabel(item.peakEarningsWindow)}</span>
+                </div>
+                <div>
+                  {new Date(item.created_at * 1000).toLocaleDateString()}
+                </div>
+              </div>
+            </div>
+            
+            {/* External Link */}
+            <div className="flex-shrink-0">
+              <a
+                href={createNjumpEventLink(item.eventId)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-opacity"
               >
-                <a
-                  href={createNjumpEventLink(item.eventId)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-              </Button>
-            </div>
-
-            {/* Metrics Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div className={`flex items-center gap-2 ${showMetric === 'earnings' ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
-                <Zap className="h-4 w-4" />
-                <div>
-                  <div>{formatSats(item.totalSats)} sats</div>
-                  <div className="text-xs opacity-70">{item.zapCount} zaps</div>
-                </div>
-              </div>
-
-              <div className={`flex items-center gap-2 ${showMetric === 'speed' ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
-                <Timer className="h-4 w-4" />
-                <div>
-                  <div>{formatTimeToFirstZap(item.timeToFirstZap)}</div>
-                  <div className="text-xs opacity-70">to first zap</div>
-                </div>
-              </div>
-
-              <div className={`flex items-center gap-2 ${showMetric === 'virality' ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
-                <TrendingUp className="h-4 w-4" />
-                <div>
-                  <div>{item.viralityScore.toFixed(1)}%</div>
-                  <div className="text-xs opacity-70">in 1st hour</div>
-                </div>
-              </div>
-
-              <div className={`flex items-center gap-2 ${showMetric === 'longevity' ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
-                <Calendar className="h-4 w-4" />
-                <div>
-                  <div>{formatLongevity(item.longevityDays)}</div>
-                  <div className="text-xs opacity-70">earning span</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Additional Performance Info */}
-            <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-muted">
-              <div className="flex items-center gap-4">
-                <span>Avg: {formatSats(item.avgZapAmount)} sats/zap</span>
-                <span>Peak: {getPeakWindowLabel(item.peakEarningsWindow)}</span>
-              </div>
-              <div>
-                {new Date(item.created_at * 1000).toLocaleDateString()}
-              </div>
+                View Content <ExternalLink className="h-3 w-3" />
+              </a>
             </div>
           </div>
         );

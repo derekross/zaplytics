@@ -585,3 +585,100 @@ export function analyzeContentPerformance(zaps: ParsedZap[]): import('@/types/za
 
   return performanceAnalysis.sort((a, b) => b.totalSats - a.totalSats);
 }
+
+/**
+ * Extract hashtags from content text
+ */
+function extractHashtags(text: string): string[] {
+  const hashtagRegex = /#[a-zA-Z0-9_]+/g;
+  const matches = text.match(hashtagRegex);
+  return matches ? matches.map(tag => tag.toLowerCase()) : [];
+}
+
+/**
+ * Analyze hashtag performance
+ */
+export function analyzeHashtagPerformance(zaps: ParsedZap[]): import('@/types/zaplytics').HashtagPerformance[] {
+  const hashtagData = new Map<string, {
+    hashtag: string;
+    totalSats: number;
+    zapCount: number;
+    posts: Set<string>;
+    firstZapTimes: number[];
+    contentCreatedTimes: number[];
+  }>();
+
+  const allPosts = new Map<string, { hashtags: string[], created_at: number, hasZaps: boolean }>();
+
+  // First pass: collect all posts and their hashtags
+  zaps.forEach(zap => {
+    if (!zap.zappedEvent) return;
+    
+    const zappedEvent = zap.zappedEvent; // Store in variable for TypeScript
+    const hashtags = extractHashtags(zappedEvent.content || '');
+    
+    if (!allPosts.has(zappedEvent.id)) {
+      allPosts.set(zappedEvent.id, {
+        hashtags,
+        created_at: zappedEvent.created_at,
+        hasZaps: true
+      });
+    }
+
+    hashtags.forEach(hashtag => {
+      const existing = hashtagData.get(hashtag);
+      if (existing) {
+        existing.totalSats += zap.amount;
+        existing.zapCount += 1;
+        existing.posts.add(zappedEvent.id);
+        existing.firstZapTimes.push(zap.receipt.created_at);
+        existing.contentCreatedTimes.push(zappedEvent.created_at);
+      } else {
+        hashtagData.set(hashtag, {
+          hashtag,
+          totalSats: zap.amount,
+          zapCount: 1,
+          posts: new Set([zappedEvent.id]),
+          firstZapTimes: [zap.receipt.created_at],
+          contentCreatedTimes: [zappedEvent.created_at],
+        });
+      }
+    });
+  });
+
+  // Calculate success rates and other metrics
+  const hashtagPerformance: import('@/types/zaplytics').HashtagPerformance[] = [];
+
+  hashtagData.forEach((data) => {
+    // Calculate average time to first zap
+    const timeToFirstZaps = data.firstZapTimes.map((zapTime, index) => 
+      Math.max(0, zapTime - data.contentCreatedTimes[index])
+    );
+    const avgTimeToFirstZap = timeToFirstZaps.length > 0 
+      ? timeToFirstZaps.reduce((sum, time) => sum + time, 0) / timeToFirstZaps.length 
+      : 0;
+
+    const postCount = data.posts.size;
+    
+    // Success rate is 100% since we only have data for posts that got zapped
+    // In a full implementation, we'd need to track all posts, not just zapped ones
+    const successRate = 100; // This would be calculated differently with full post data
+    
+    const avgZapAmount = data.zapCount > 0 ? Math.round(data.totalSats / data.zapCount) : 0;
+
+    hashtagPerformance.push({
+      hashtag: data.hashtag,
+      totalSats: data.totalSats,
+      zapCount: data.zapCount,
+      avgZapAmount,
+      postCount,
+      successRate,
+      avgTimeToFirstZap,
+    });
+  });
+
+  return hashtagPerformance
+    .filter(h => h.zapCount >= 2) // Only include hashtags with at least 2 zaps
+    .sort((a, b) => b.totalSats - a.totalSats);
+}
+
