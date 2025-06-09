@@ -31,7 +31,7 @@ const queryClient = new QueryClient({
 });
 
 const defaultConfig: AppConfig = {
-  theme: "light",
+  theme: "dark", // Set dark purple theme as default
   relayUrl: "wss://relay.nostr.band",
 };
 
