@@ -5,12 +5,7 @@ import {
   PieChart, 
   Pie, 
   Cell, 
-  Tooltip, 
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid
+  Tooltip
 } from 'recharts';
 import type { EarningsByKind } from '@/types/zaplytics';
 import { formatSats, formatPercentage } from '@/lib/zaplytics/utils';
@@ -101,130 +96,63 @@ export function EarningsByKindChart({ data, isLoading }: EarningsByKindChartProp
     );
   };
 
-  // Custom tooltip for bar chart
-  const BarTooltip = ({ active, payload, label }: TooltipProps) => {
-    if (!active || !payload || !payload.length) return null;
-
-    const data = payload[0].payload;
-    return (
-      <div className="bg-card border rounded-lg shadow-lg p-3">
-        <p className="text-sm font-medium">{label}</p>
-        <div className="mt-1 space-y-1">
-          <p className="text-sm text-primary">
-            <span className="font-medium">{formatSats(data.totalSats)}</span> sats
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {data.zapCount} zap{data.zapCount !== 1 ? 's' : ''}
-          </p>
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Pie Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Earnings by Content Type</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Distribution of earnings across different event kinds
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Chart */}
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={chartData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="totalSats"
-                  >
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<PieTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Legend */}
-            <div className="space-y-3">
-              <h4 className="text-sm font-medium">Content Types</h4>
-              <div className="space-y-2">
-                {chartData.map((item) => (
-                  <div key={item.kind} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div 
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: item.color }}
-                      />
-                      <span className="text-sm">{item.kindName}</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-medium">{formatSats(item.totalSats)}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {formatPercentage(item.percentage)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Bar Chart for better comparison */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Content Type Comparison</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Side-by-side comparison of earnings by content type
-          </p>
-        </CardHeader>
-        <CardContent>
+    <Card>
+      <CardHeader>
+        <CardTitle>Earnings by Content Type</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Distribution of earnings across different event kinds
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Chart */}
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
-                data={chartData} 
-                margin={{ top: 5, right: 30, left: 20, bottom: 60 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis 
-                  dataKey="kindName" 
-                  className="text-xs fill-muted-foreground"
-                  tick={{ fontSize: 11 }}
-                  angle={-45}
-                  textAnchor="end"
-                  height={60}
-                />
-                <YAxis 
-                  className="text-xs fill-muted-foreground"
-                  tick={{ fontSize: 12 }}
-                  tickFormatter={(value) => formatSats(value)}
-                />
-                <Tooltip content={<BarTooltip />} />
-                <Bar 
-                  dataKey="totalSats" 
-                  radius={[4, 4, 0, 0]}
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  outerRadius={100}
+                  fill="#8884d8"
+                  dataKey="totalSats"
                 >
-                  {chartData.map((entry, chartIndex) => (
-                    <Cell key={`cell-${chartIndex}`} fill={entry.color} />
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
-                </Bar>
-              </BarChart>
+                </Pie>
+                <Tooltip content={<PieTooltip />} />
+              </PieChart>
             </ResponsiveContainer>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+
+          {/* Legend */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium">Content Types</h4>
+            <div className="space-y-2">
+              {chartData.map((item) => (
+                <div key={item.kind} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className="text-sm">{item.kindName}</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium">{formatSats(item.totalSats)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {formatPercentage(item.percentage)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

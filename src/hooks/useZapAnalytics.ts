@@ -17,7 +17,11 @@ import {
   groupZapsByPeriod,
   groupZapsByContent,
   groupZapsByKind,
-  getTopZappers
+  getTopZappers,
+  groupZapsByHour,
+  groupZapsByDayOfWeek,
+  analyzeZapperLoyalty,
+  analyzeContentPerformance
 } from '@/lib/zaplytics/utils';
 
 /**
@@ -949,6 +953,18 @@ export function useZapAnalytics(timeRange: TimeRange = '30d', customRange?: Cust
           earningsByKind: [],
           topZappers: [],
           allZaps: [],
+          temporalPatterns: {
+            earningsByHour: [],
+            earningsByDayOfWeek: [],
+          },
+          zapperLoyalty: {
+            newZappers: 0,
+            returningZappers: 0,
+            regularSupporters: 0,
+            averageLifetimeValue: 0,
+            topLoyalZappers: [],
+          },
+          contentPerformance: [],
           loadingState: {
             isLoading: false,
             isComplete: true,
@@ -1010,6 +1026,15 @@ export function useZapAnalytics(timeRange: TimeRange = '30d', customRange?: Cust
       const earningsByKind = groupZapsByKind(parsedZaps);
       const topZappers = getTopZappers(parsedZaps).slice(0, 10);
 
+      // Calculate new analytics
+      const temporalPatterns = {
+        earningsByHour: groupZapsByHour(parsedZaps),
+        earningsByDayOfWeek: groupZapsByDayOfWeek(parsedZaps),
+      };
+      
+      const zapperLoyalty = analyzeZapperLoyalty(parsedZaps);
+      const contentPerformance = analyzeContentPerformance(parsedZaps).slice(0, 20); // Top 20 performing content
+
       return {
         totalEarnings,
         totalZaps,
@@ -1020,6 +1045,9 @@ export function useZapAnalytics(timeRange: TimeRange = '30d', customRange?: Cust
         earningsByKind,
         topZappers,
         allZaps: parsedZaps,
+        temporalPatterns,
+        zapperLoyalty,
+        contentPerformance,
         loadingState: {
           isLoading: progressiveData.isLoading || _contentLoading || _profilesLoading,
           isComplete: progressiveData.isComplete && !_contentLoading && !_profilesLoading,

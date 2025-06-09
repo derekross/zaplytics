@@ -323,3 +323,265 @@ export function truncateText(text: string, maxLength: number = 100): string {
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength) + '...';
 }
+
+/**
+ * Analyze temporal patterns - earnings by hour of day
+ */
+export function groupZapsByHour(zaps: ParsedZap[]): import('@/types/zaplytics').EarningsByHour[] {
+  const grouped = new Map<number, { totalSats: number; zapCount: number }>();
+
+  // Initialize all 24 hours with zero values
+  for (let hour = 0; hour < 24; hour++) {
+    grouped.set(hour, { totalSats: 0, zapCount: 0 });
+  }
+
+  zaps.forEach(zap => {
+    const date = new Date(zap.receipt.created_at * 1000);
+    const hour = date.getHours();
+    const existing = grouped.get(hour)!;
+    existing.totalSats += zap.amount;
+    existing.zapCount += 1;
+  });
+
+  return Array.from(grouped.entries())
+    .map(([hour, stats]) => ({
+      hour,
+      totalSats: stats.totalSats,
+      zapCount: stats.zapCount,
+      avgZapAmount: stats.zapCount > 0 ? Math.round(stats.totalSats / stats.zapCount) : 0,
+    }))
+    .sort((a, b) => a.hour - b.hour);
+}
+
+/**
+ * Analyze temporal patterns - earnings by day of week
+ */
+export function groupZapsByDayOfWeek(zaps: ParsedZap[]): import('@/types/zaplytics').EarningsByDayOfWeek[] {
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const grouped = new Map<number, { totalSats: number; zapCount: number }>();
+
+  // Initialize all 7 days with zero values
+  for (let day = 0; day < 7; day++) {
+    grouped.set(day, { totalSats: 0, zapCount: 0 });
+  }
+
+  zaps.forEach(zap => {
+    const date = new Date(zap.receipt.created_at * 1000);
+    const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const existing = grouped.get(dayOfWeek)!;
+    existing.totalSats += zap.amount;
+    existing.zapCount += 1;
+  });
+
+  return Array.from(grouped.entries())
+    .map(([dayOfWeek, stats]) => ({
+      dayOfWeek,
+      dayName: dayNames[dayOfWeek],
+      totalSats: stats.totalSats,
+      zapCount: stats.zapCount,
+      avgZapAmount: stats.zapCount > 0 ? Math.round(stats.totalSats / stats.zapCount) : 0,
+    }))
+    .sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+}
+
+/**
+ * Analyze zapper loyalty and retention patterns
+ */
+export function analyzeZapperLoyalty(zaps: ParsedZap[]): import('@/types/zaplytics').LoyaltyStats {
+  const zapperData = new Map<string, {
+    pubkey: string;
+    name?: string;
+    picture?: string;
+    zaps: ParsedZap[];
+    totalSats: number;
+    zapCount: number;
+  }>();
+
+  // Group zaps by zapper
+  zaps.forEach(zap => {
+    const existing = zapperData.get(zap.zapper.pubkey);
+    if (existing) {
+      existing.zaps.push(zap);
+      existing.totalSats += zap.amount;
+      existing.zapCount += 1;
+    } else {
+      zapperData.set(zap.zapper.pubkey, {
+        pubkey: zap.zapper.pubkey,
+        name: zap.zapper.name,
+        picture: zap.zapper.picture,
+        zaps: [zap],
+        totalSats: zap.amount,
+        zapCount: 1,
+      });
+    }
+  });
+
+  const loyaltyAnalysis: import('@/types/zaplytics').ZapperLoyalty[] = [];
+  let newZappers = 0;
+  let returningZappers = 0;
+  let regularSupporters = 0;
+
+  zapperData.forEach(zapperInfo => {
+    const sortedZaps = zapperInfo.zaps.sort((a, b) => a.receipt.created_at - b.receipt.created_at);
+    const firstZapDate = new Date(sortedZaps[0].receipt.created_at * 1000);
+    const lastZapDate = new Date(sortedZaps[sortedZaps.length - 1].receipt.created_at * 1000);
+    
+    const daysBetweenFirstAndLast = zapperInfo.zapCount > 1 
+      ? Math.ceil((lastZapDate.getTime() - firstZapDate.getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
+    
+    const averageDaysBetweenZaps = zapperInfo.zapCount > 1 
+      ? daysBetweenFirstAndLast / (zapperInfo.zapCount - 1)
+      : 0;
+
+    // Categorize zappers based on behavior patterns
+    let category: 'whale' | 'regular' | 'occasional' | 'one-time';
+    let isRegular = false;
+
+    if (zapperInfo.zapCount === 1) {
+      category = 'one-time';
+      newZappers++;
+    } else {
+      returningZappers++;
+      
+      if (zapperInfo.totalSats >= 10000) { // 10k+ sats = whale
+        category = 'whale';
+      } else if (zapperInfo.zapCount >= 5 || (zapperInfo.zapCount >= 3 && averageDaysBetweenZaps <= 7)) {
+        category = 'regular';
+        isRegular = true;
+        regularSupporters++;
+      } else {
+        category = 'occasional';
+      }
+    }
+
+    loyaltyAnalysis.push({
+      pubkey: zapperInfo.pubkey,
+      name: zapperInfo.name,
+      picture: zapperInfo.picture,
+      zapCount: zapperInfo.zapCount,
+      totalSats: zapperInfo.totalSats,
+      firstZapDate,
+      lastZapDate,
+      daysBetweenFirstAndLast,
+      averageDaysBetweenZaps,
+      isRegular,
+      category,
+    });
+  });
+
+  const totalZappers = zapperData.size;
+  const totalSats = Array.from(zapperData.values()).reduce((sum, zapper) => sum + zapper.totalSats, 0);
+  const averageLifetimeValue = totalZappers > 0 ? Math.round(totalSats / totalZappers) : 0;
+
+  // Sort by total sats for top loyal zappers
+  const topLoyalZappers = loyaltyAnalysis
+    .filter(zapper => zapper.zapCount > 1) // Only returning zealers
+    .sort((a, b) => b.totalSats - a.totalSats)
+    .slice(0, 10);
+
+  return {
+    newZappers,
+    returningZappers,
+    regularSupporters,
+    averageLifetimeValue,
+    topLoyalZappers,
+  };
+}
+
+/**
+ * Analyze content performance metrics
+ */
+export function analyzeContentPerformance(zaps: ParsedZap[]): import('@/types/zaplytics').ContentPerformance[] {
+  const contentData = new Map<string, {
+    eventId: string;
+    eventKind: number;
+    content: string;
+    author: string;
+    created_at: number;
+    zaps: ParsedZap[];
+    totalSats: number;
+    zapCount: number;
+  }>();
+
+  // Group zaps by content
+  zaps.forEach(zap => {
+    if (!zap.zappedEvent) return;
+    
+    const existing = contentData.get(zap.zappedEvent.id);
+    if (existing) {
+      existing.zaps.push(zap);
+      existing.totalSats += zap.amount;
+      existing.zapCount += 1;
+    } else {
+      contentData.set(zap.zappedEvent.id, {
+        eventId: zap.zappedEvent.id,
+        eventKind: zap.zappedEvent.kind,
+        content: zap.zappedEvent.content || '',
+        author: zap.zappedEvent.author,
+        created_at: zap.zappedEvent.created_at,
+        zaps: [zap],
+        totalSats: zap.amount,
+        zapCount: 1,
+      });
+    }
+  });
+
+  const performanceAnalysis: import('@/types/zaplytics').ContentPerformance[] = [];
+
+  contentData.forEach(content => {
+    const sortedZaps = content.zaps.sort((a, b) => a.receipt.created_at - b.receipt.created_at);
+    const contentCreatedAt = content.created_at * 1000;
+    const firstZapTime = sortedZaps[0].receipt.created_at * 1000;
+    const lastZapTime = sortedZaps[sortedZaps.length - 1].receipt.created_at * 1000;
+
+    // Time to first zap (seconds from content creation to first zap)
+    const timeToFirstZap = Math.max(0, (firstZapTime - contentCreatedAt) / 1000);
+
+    // Content longevity (days between first and last zap)
+    const longevityDays = content.zapCount > 1 
+      ? (lastZapTime - firstZapTime) / (1000 * 60 * 60 * 24)
+      : 0;
+
+    // Virality score - percentage of zaps received in first hour
+    const firstHourCutoff = contentCreatedAt + (60 * 60 * 1000); // 1 hour after creation
+    const firstHourZaps = sortedZaps.filter(zap => (zap.receipt.created_at * 1000) <= firstHourCutoff);
+    const viralityScore = content.zapCount > 0 ? (firstHourZaps.length / content.zapCount) * 100 : 0;
+
+    // Peak earnings window - find the best performing time window
+    const windows = [1, 6, 24, 72]; // hours
+    let bestWindow = 1;
+    let maxWindowEarnings = 0;
+
+    windows.forEach(windowHours => {
+      const windowMs = windowHours * 60 * 60 * 1000;
+      const windowCutoff = contentCreatedAt + windowMs;
+      const windowZaps = sortedZaps.filter(zap => (zap.receipt.created_at * 1000) <= windowCutoff);
+      const windowEarnings = windowZaps.reduce((sum, zap) => sum + zap.amount, 0);
+      
+      if (windowEarnings > maxWindowEarnings) {
+        maxWindowEarnings = windowEarnings;
+        bestWindow = windowHours;
+      }
+    });
+
+    const avgZapAmount = Math.round(content.totalSats / content.zapCount);
+
+    performanceAnalysis.push({
+      eventId: content.eventId,
+      eventKind: content.eventKind,
+      content: content.content,
+      author: content.author,
+      created_at: content.created_at,
+      totalSats: content.totalSats,
+      zapCount: content.zapCount,
+      timeToFirstZap,
+      peakEarningsWindow: bestWindow,
+      longevityDays,
+      viralityScore,
+      avgZapAmount,
+    });
+  });
+
+  return performanceAnalysis.sort((a, b) => b.totalSats - a.totalSats);
+}

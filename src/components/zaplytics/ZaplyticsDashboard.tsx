@@ -11,6 +11,9 @@ import { EarningsChart } from '@/components/zaplytics/EarningsChart';
 import { TopContentTable } from '@/components/zaplytics/TopContentTable';
 import { EarningsByKindChart } from '@/components/zaplytics/EarningsByKindChart';
 import { ZapperLeaderboard } from '@/components/zaplytics/ZapperLeaderboard';
+import { TemporalPatternsChart } from '@/components/zaplytics/TemporalPatternsChart';
+import { ZapperLoyalty } from '@/components/zaplytics/ZapperLoyalty';
+import { ContentPerformance } from '@/components/zaplytics/ContentPerformance';
 import { ZapLoadingProgress } from '@/components/zaplytics/ZapLoadingProgress';
 import type { TimeRange, CustomDateRange, AnalyticsData } from '@/types/zaplytics';
 
@@ -215,10 +218,38 @@ export function ZaplyticsDashboard() {
               />
             </div>
 
-            {/* Earnings by Kind Charts */}
-            {analytics?.earningsByKind && analytics.earningsByKind.length > 0 && (
-              <EarningsByKindChart 
-                data={analytics.earningsByKind}
+            {/* New Analytics Row 1: Temporal Patterns & Content Types */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {/* Temporal Activity Patterns */}
+              {analytics?.temporalPatterns && (
+                <TemporalPatternsChart 
+                  hourlyData={analytics.temporalPatterns.earningsByHour}
+                  weeklyData={analytics.temporalPatterns.earningsByDayOfWeek}
+                  isLoading={isLoading}
+                />
+              )}
+
+              {/* Content Type Distribution (keep the single pie chart) */}
+              {analytics?.earningsByKind && analytics.earningsByKind.length > 0 && (
+                <EarningsByKindChart 
+                  data={analytics.earningsByKind}
+                  isLoading={isLoading}
+                />
+              )}
+            </div>
+
+            {/* New Analytics Row 2: Zapper Loyalty */}
+            {analytics?.zapperLoyalty && (
+              <ZapperLoyalty 
+                data={analytics.zapperLoyalty}
+                isLoading={isLoading}
+              />
+            )}
+
+            {/* Content Performance Analysis - Full Width */}
+            {analytics?.contentPerformance && analytics.contentPerformance.length > 0 && (
+              <ContentPerformance 
+                data={analytics.contentPerformance}
                 isLoading={isLoading}
               />
             )}

@@ -66,6 +66,61 @@ export interface ZapperStats {
   zapCount: number;
 }
 
+// New types for temporal analytics
+export interface EarningsByHour {
+  hour: number;
+  totalSats: number;
+  zapCount: number;
+  avgZapAmount: number;
+}
+
+export interface EarningsByDayOfWeek {
+  dayOfWeek: number;
+  dayName: string;
+  totalSats: number;
+  zapCount: number;
+  avgZapAmount: number;
+}
+
+// New types for zapper loyalty analytics
+export interface ZapperLoyalty {
+  pubkey: string;
+  name?: string;
+  picture?: string;
+  zapCount: number;
+  totalSats: number;
+  firstZapDate: Date;
+  lastZapDate: Date;
+  daysBetweenFirstAndLast: number;
+  averageDaysBetweenZaps: number;
+  isRegular: boolean; // 3+ zaps with reasonable frequency
+  category: 'whale' | 'regular' | 'occasional' | 'one-time';
+}
+
+export interface LoyaltyStats {
+  newZappers: number;
+  returningZappers: number;
+  regularSupporters: number;
+  averageLifetimeValue: number;
+  topLoyalZappers: ZapperLoyalty[];
+}
+
+// New types for content performance analytics
+export interface ContentPerformance {
+  eventId: string;
+  eventKind: number;
+  content: string;
+  author: string;
+  created_at: number;
+  totalSats: number;
+  zapCount: number;
+  timeToFirstZap: number; // seconds from creation to first zap
+  peakEarningsWindow: number; // hours of peak earnings (first 1h, 6h, 24h, etc.)
+  longevityDays: number; // days between first and last zap
+  viralityScore: number; // zaps in first hour / total zaps
+  avgZapAmount: number;
+}
+
 export interface AnalyticsData {
   totalEarnings: number;
   totalZaps: number;
@@ -76,6 +131,14 @@ export interface AnalyticsData {
   earningsByKind: EarningsByKind[];
   topZappers: ZapperStats[];
   allZaps: ParsedZap[];
+  
+  // New analytics data
+  temporalPatterns: {
+    earningsByHour: EarningsByHour[];
+    earningsByDayOfWeek: EarningsByDayOfWeek[];
+  };
+  zapperLoyalty: LoyaltyStats;
+  contentPerformance: ContentPerformance[];
 }
 
 export type TimeRange = '24h' | '7d' | '30d' | '90d' | 'custom';
