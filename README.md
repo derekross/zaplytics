@@ -53,7 +53,7 @@ Zaplytics is a comprehensive analytics platform built specifically for the Nostr
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/zaplytics.git
+   git clone https://github.com/derekross/zaplytics.git
    cd zaplytics
    ```
 
